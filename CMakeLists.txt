@@ -9,19 +9,19 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 find_package(osvr REQUIRED)
 find_package(OpenGL REQUIRED)
 find_package(SDL2 REQUIRED)
-find_package(GLEW REQUIRED)
+#find_package(GLEW REQUIRED)
 
 # Add the libSDL2pp subproject
 #add_subdirectory(vendor/libSDL2pp)
 
-add_executable(osvr-optical-calib OpticalCalib.cpp)
+add_executable(osvr-optical-calib SDL2Helpers.h OpticalCalib.cpp)
 target_link_libraries(osvr-optical-calib
     PRIVATE
     osvr::osvrClientKitCpp
     #${SDL2PP_LIBRARIES}
     ${OPENGL_LIBRARY}
-    SDL2::SDL2main
-    GLEW::GLEW)
+    SDL2::SDL2main)
+#    GLEW::GLEW)
 target_include_directories(osvr-optical-calib
     PRIVATE
     #${SDL2PP_INCLUDE_DIRS}
