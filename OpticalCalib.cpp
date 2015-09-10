@@ -135,6 +135,16 @@ static void rectangle() {
     });
 }
 
+void russDrawCircle(glm::vec2 center, float radius) {
+    glBegin(GL_LINE_STRIP);
+    float step = 1 / radius;
+    for (float r = 0; r <= 2 * M_PI; r += step) {
+        glm::vec2 p(center.x + radius * cos(r),
+            center.y + radius * sin(r));
+        glVertex2fv(glm::value_ptr(p));
+    }
+    glEnd();
+}
 class EyeSurfaceCalibration {
   public:
     EyeSurfaceCalibration(osvr::clientkit::Surface const &s,
@@ -142,10 +152,10 @@ class EyeSurfaceCalibration {
         : m_surface(s), m_display(display),
           m_viewport(m_surface.getRelativeViewport()),
           m_size(m_viewport.width, m_viewport.height),
-          m_projection(glm::ortho(0.f, m_size.x, 0.f, m_size.y)),
+          m_halfsize(m_size / 2.f),
+          m_projection(glm::ortho(-m_halfsize.x, m_halfsize.x, -m_halfsize.y, m_halfsize.y, 1.f, 10.f)),
           m_radius(std::min(m_viewport.width, m_viewport.height)),
-          m_center(m_size / 2.f) {
-
+          m_center(m_halfsize) {
         std::cout << s << std::endl;
     }
     void changeSize(std::int32_t change) { m_radius += change; }
@@ -155,14 +165,10 @@ class EyeSurfaceCalibration {
     Radius getRadius() const { return m_radius; }
     /// @brief Entry point for rendering
     void render() {
-
-        // Clear the screen to a light blue
-        glClearColor(.3, .3, .8, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
-
         /// For each viewer, eye, surface combination...
         m_display.forEachSurface(
             [&](osvr::clientkit::Surface surface) { handleSurface(surface); });
+
     }
 
   private:
@@ -174,52 +180,46 @@ class EyeSurfaceCalibration {
         }
         std::cout << " - draw this surface" << std::endl;
 
-        /// Identity modelview - for now
-        glMatrixMode(GL_MODELVIEW);
-        glLoadIdentity();
-
         std::cout << "Viewport" << static_cast<GLint>(m_viewport.left) << "<"
-                  << static_cast<GLint>(m_viewport.bottom) << "<"
-                  << static_cast<GLsizei>(m_viewport.width) << "<"
-                  << static_cast<GLsizei>(m_viewport.height) << std::endl;
+            << static_cast<GLint>(m_viewport.bottom) << "<"
+            << static_cast<GLsizei>(m_viewport.width) << "<"
+            << static_cast<GLsizei>(m_viewport.height) << std::endl;
         /// Use the viewport provided
         glViewport(static_cast<GLint>(m_viewport.left),
-                   static_cast<GLint>(m_viewport.bottom),
-                   static_cast<GLsizei>(m_viewport.width),
-                   static_cast<GLsizei>(m_viewport.height));
-
+            static_cast<GLint>(m_viewport.bottom),
+            static_cast<GLsizei>(m_viewport.width),
+            static_cast<GLsizei>(m_viewport.height));
         /// Don't use the projection matrix from OSVR - we want the ortho one we
         /// made at instantiation.
         glMatrixMode(GL_PROJECTION);
         glLoadIdentity();
-        glMultMatrixf(glm::value_ptr(m_projection));
-
+        //glMultMatrixf(glm::value_ptr(glm::ortho(-256.f, 256.f, -256.f, 256.f, 0.1f, 100.f)));
+        //glOrtho(-m_viewport.width, m_viewport.width, -m_viewport.height, m_viewport.height, 1, 10);
+        glOrtho(-m_halfsize.x, m_halfsize.x, -m_halfsize.y, m_halfsize.y, 1, 10);
+        //glMultMatrixf(glm::value_ptr(m_projection));
         glMatrixMode(GL_MODELVIEW);
+        glLoadIdentity();
+        //glTranslatef(0.f, 0.f, -1.f);
+        //glScalef(0.5f, 0.5f, 0.5f);
+        glTranslatef(-m_halfsize.x, -m_halfsize.y, -2.f);
+        //glScalef(2, 2, 2);
+        glColor4f(1.0f, 1.0f, 1.0f, 1.0f); // sets color to white.
 
-
+        russDrawCircle(m_center, m_radius);
         // rectangle();
-        // myDrawCircle(m_center, m_radius);
+        //myDrawCircle(m_center, m_radius);
         // DrawCircle(m_center.x, m_center.y, m_radius, 64);
     }
     osvr::clientkit::Surface m_surface;
     osvr::clientkit::DisplayConfig &m_display;
     osvr::clientkit::RelativeViewport m_viewport;
     glm::vec2 m_size;
+    glm::vec2 m_halfsize;
     glm::mat4 m_projection;
     glm::vec2 m_center;
     Radius m_radius;
 };
 
-void russDrawCircle(glm::vec2 center, float radius) {
-    glBegin(GL_LINE_STRIP);
-    float step = 1 / radius;
-    for (float r = 0; r <= 2 * M_PI; r += step) {
-        glm::vec2 p(center.x + radius * cos(r),
-            center.y + radius * sin(r));
-        glVertex2fv(glm::value_ptr(p));
-    }
-    glEnd();
-}
 class CalibrationRoutine {
   public:
     CalibrationRoutine() : ctx("org.osvr.OpticalCalibration"), display(ctx) {
@@ -254,50 +254,9 @@ class CalibrationRoutine {
 #ifndef __ANDROID__ // Don't want to pop up the on-screen keyboard
             osvr::SDL2::TextInput textinput;
 #endif
-#if 1
-            SDL_Event e;
-            bool ok = true;
-            while (ok) {
-                while (SDL_PollEvent(&e)) {
-                    switch (e.type) {
-                    case SDL_QUIT:
-                        // Handle some system-wide quit event
-                        ok = false;
-                        break;
-                    }
-                }
-                SDL_GL_MakeCurrent(window.get(), glctx);
-
-                // Clear the screen to a light blue
-                glClearColor(.3, .3, .8, 1.0f);
-                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-                /// Use the viewport provided
-                glViewport(0,
-                    0,
-                    256,
-                    256);
-
-                /// Don't use the projection matrix from OSVR - we want the ortho one we
-                /// made at instantiation.
-                glMatrixMode(GL_PROJECTION);
-                glLoadIdentity();
-                //glMultMatrixf(glm::value_ptr(glm::ortho(-256.f, 256.f, -256.f, 256.f, 0.1f, 100.f)));
-                glOrtho(0, 256, 0, 256, 1, 10);
-                glMatrixMode(GL_MODELVIEW);
-                glLoadIdentity();
-                glTranslatef(0.f,0.f, -1.f );
-                glColor4f(1.0f, 1.0f, 1.0f, 1.0f); // sets color to white.
-                russDrawCircle(glm::vec2(128, 128), 50);
-                SDL_GL_SwapWindow(window.get());
-            }
-
-#endif
-#if 0
             display.forEachSurface([&](osvr::clientkit::Surface surface) {
-                handleSurface(surface);
+                handleSurface(surface, glctx);
             });
-#endif
         }
         window = nullptr;
     }
@@ -306,7 +265,7 @@ class CalibrationRoutine {
     void setQuit() { quit = true; }
     void setSurfaceDone() { surfaceDone = true; }
 
-    void handleSurface(osvr::clientkit::Surface surface) {
+    void handleSurface(osvr::clientkit::Surface surface, osvr::SDL2::GLContext & glctx) {
         if (quit) {
             return;
         }
@@ -329,6 +288,11 @@ class CalibrationRoutine {
                 }
             }
 
+            SDL_GL_MakeCurrent(window.get(), glctx);
+
+            // Clear the screen to a light blue
+            glClearColor(.3, .3, .8, 1.0f);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
             // Update OSVR
             ctx.update();
 
